@@ -1,7 +1,9 @@
-from os import listdir, path
-from collections import namedtuple
+# from os import listdir, path
+# from collections import namedtuple
 import argparse
+
 from collections import defaultdict
+from nltk.tokenize import word_tokenize
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -29,25 +31,33 @@ parser.add_argument(
 )
 
 
-def def_value():
-    return []
-
-
 def get_data_from_files(input_ann_file, input_txt_file):
-    # with open(input_txt_file, 'r') as f:
-    #     text_string = f.read()
-    # l_texts = text_string.split('\n')
-    # print(len(l_texts))
+    """
+    Funcion que lee de los ficheros ann y txt. Devuelve una tupla, un diccionario donde la key es la linea del txt y el value
+    el string de las líneas T del fichero ann, y una lista con todas las lineas del txt.
+    :param input_ann_file:
+    :param input_txt_file:
+    :return:
+        {
+            0: ["T1	Action 3 12	presencia", "T2	Concept 17 20	gen", ...],
+            1: ["T6	Concept 101 109;110 112;113 119	factores de riesgo", "T7	Concept 133 137;138 151	raza afroamericana", ...],
+            ...
+        },
+        [
+            "La presencia del gen de células falciformes y otro normal se denomina rasgo drepanocítico.",
+            "Entre los factores de riesgo están ser de raza afroamericana o el exceso de peso.",
+            ...
+        ]
+    """
 
     l_texts = []
     with open(input_txt_file, 'r') as fi:
         for line in fi:
             l_texts.append(line)
-    print(len(l_texts))
 
     with open(input_ann_file, 'r') as fi:
         id = 0
-        last_estado = 'T'
+        last_estado = 'R'
         l_ann_id = []
         for line in fi:
             if last_estado == 'A':
@@ -59,8 +69,8 @@ def get_data_from_files(input_ann_file, input_txt_file):
             elif last_estado != 'T':
                 if line[0] == 'T':
                     last_estado = 'T'
-                    id += 1
                     l_ann_id.append({'line_id': id, 'line': line})
+                    id += 1
                 else:
                     last_estado = line[0]
             else:
@@ -70,8 +80,6 @@ def get_data_from_files(input_ann_file, input_txt_file):
                 else:
                     last_estado = line[0]
 
-    print(len(l_ann_id))
-
     d_annotations = defaultdict(list)
     for ann in l_ann_id:
         line_id = ann['line_id']
@@ -79,51 +87,37 @@ def get_data_from_files(input_ann_file, input_txt_file):
 
         d_annotations[line_id].append(line)
 
-    print(len(d_annotations.keys()))
+    return d_annotations, l_texts
 
-    print(l_texts[-1])
-    print(d_annotations[1198])
 
-    input_annotations = []
-    for line, text in zip(l_annotations, l_texts):
-        if line[0] == 'T':
-            annotation_record = {}
-            entry = line.split('\t')
+def get_bioconll_from_brat_data(d_data_ann, l_texts):
+    # Sentiros libres de hacerla como creais conveniente
+    for num_linea, l_anotaciones in d_data_ann.items():
+        linea = l_texts[num_linea]
+        linea = linea.replace('\n', '') # Lo elimino antes por si da por culo
+        linea_tokens = word_tokenize(linea, language='spanish')
 
-            annotation_record["label"] = entry[1].split()[0].upper()
+        for anotacion in l_anotaciones:
+            # T28	Concept 432 437;438 440;441 445	menor de edad
+            l_anotacion = anotacion.split('\t')
+            etiqueta = l_anotacion[1]
+            str_etiqueta = l_anotacion[3]
+            str_pos_etiqueta = l_anotacion[2]
 
-            str_limits = entry[1][len(annotation_record["label"]):-1]
-            l_limits = []
-            if ';' in str_limits:
-                l_str_limits = str_limits.split(';')
-                for str_limit in l_str_limits:
-                    start, end = str_limit.split()
-                    l_limits.append({
-                        'start': int(start),
-                        'end': int(end)
-                    })
-            else:
-                start, end = str_limits.split()
-                l_limits.append({
-                    'start': int(start),
-                    'end': int(end)
+            l_pos_etiqueta = []
+            for str_pos in str_pos_etiqueta.split(';'):
+                l_tmp_ = str_pos.split()
+
+                l_pos_etiqueta.append({
+                    'ini': int(l_tmp_)[0],
+                    'fin': int(l_tmp_)[1]
                 })
-            annotation_record["l_limits"] = l_limits
 
-            annotation_record["l_chunk"] = entry[2].split()
-            annotation_record["text"] = text
-            input_annotations.append(annotation_record)
-
-    return input_annotations
-
-
-# def get_bioconll_from_brat_data(l_brat_data):
-    # label l_limits (start, end) l_chunk text
 
 
 def parse_text(input_ann_file, input_txt_file, output_path):
-    l_data = get_data_from_files(input_ann_file, input_txt_file)
-    # get_bioconll_from_brat_data(l_data)
+    d_data_ann, l_texts = get_data_from_files(input_ann_file, input_txt_file)
+    get_bioconll_from_brat_data(d_data_ann, l_texts)
 
 
 
